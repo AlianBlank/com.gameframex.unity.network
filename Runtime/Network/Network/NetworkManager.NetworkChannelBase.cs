@@ -74,7 +74,7 @@ namespace GameFrameX.Network.Runtime
             public Action<NetworkChannelBase, int> NetworkChannelMissHeartBeat;
             public Action<NetworkChannelBase, NetworkErrorCode, SocketError, string> NetworkChannelError;
             public Action<NetworkChannelBase, object> NetworkChannelCustomError;
-
+            private Queue<MessageHandlerAttribute> m_ExecutionQueue = new Queue<MessageHandlerAttribute>();
 
             /// <summary>
             /// 初始化网络频道基类的新实例。
@@ -263,6 +263,11 @@ namespace GameFrameX.Network.Runtime
 
                 ProcessHeartBeat(realElapseSeconds);
                 PRpcState.Update(elapseSeconds, realElapseSeconds);
+				
+				while (m_ExecutionQueue.Count > 0)
+                {
+                    m_ExecutionQueue.Dequeue()?.Invoke();
+                }
             }
 
             /// <summary>
@@ -711,7 +716,11 @@ namespace GameFrameX.Network.Runtime
                 {
                     try
                     {
-                        handler.Invoke(messageObject);
+                        lock (m_ExecutionQueue)
+                        {
+							handler.SetMessageObject(messageObject);
+                            m_ExecutionQueue.Enqueue(handler);
+                        }
                     }
                     catch (Exception e)
                     {
