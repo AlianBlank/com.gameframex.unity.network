@@ -1,5 +1,4 @@
 using GameFrameX.Runtime;
-using Newtonsoft.Json;
 
 namespace GameFrameX.Network.Runtime
 {
@@ -18,7 +17,7 @@ namespace GameFrameX.Network.Runtime
         /// </summary>
         public int UniqueId { get; set; }
 
-        [JsonIgnore]
+        [GameFrameX.LitJSON.Runtime.JsonIgnore]
         public byte[] Body { get; set; }
 
         public override string ToString()

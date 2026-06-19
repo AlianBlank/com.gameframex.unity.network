@@ -1,5 +1,4 @@
 using GameFrameX.Runtime;
-using Newtonsoft.Json;
 
 namespace GameFrameX.Network.Runtime
 {
@@ -11,7 +10,7 @@ namespace GameFrameX.Network.Runtime
         /// <summary>
         /// 消息唯一编号
         /// </summary>
-        [JsonIgnore]
+        [GameFrameX.LitJSON.Runtime.JsonIgnore]
         public int UniqueId { get; private set; }
 
         protected MessageObject()

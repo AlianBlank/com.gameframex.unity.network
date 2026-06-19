@@ -1,7 +1,9 @@
 {
     "name": "GameFrameX.Network.Tests",
     "references": [
-        "GameFrameX.Network.Runtime"
+        "GameFrameX.Network.Runtime",
+        "GameFrameX.Event.Runtime",
+        "GameFrameX.Runtime"
     ],
     "rootNamespace": "GameFrameX.Network.Tests",
     "includePlatforms": [
