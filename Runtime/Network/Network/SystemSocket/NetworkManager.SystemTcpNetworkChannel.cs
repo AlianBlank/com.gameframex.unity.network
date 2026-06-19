@@ -174,7 +174,17 @@ namespace GameFrameX.Network.Runtime
 
                 PReceiveState.Stream.Position = 0L;
                 bool processSuccess;
-                if (PReceiveState.PacketHeader != null)
+                if (PReceiveState.IsReadingReliableHeaderExtension)
+                {
+                    processSuccess = ProcessReliableHeaderExtension();
+                    if (PReceiveState.IsEmptyBody)
+                    {
+                        ProcessPackBody();
+                        ReceiveAsync();
+                        return;
+                    }
+                }
+                else if (PReceiveState.PacketHeader != null)
                 {
                     processSuccess = ProcessPackBody();
                 }
@@ -205,17 +215,58 @@ namespace GameFrameX.Network.Runtime
             /// <returns></returns>
             private bool ProcessPackHeader()
             {
-                var headerLength = PacketReceiveHeaderHandler.PacketHeaderLength;
-                var buffer = new byte[headerLength];
-                _ = PReceiveState.Stream.Read(buffer, 0, headerLength);
+                var baseHeaderLength = PacketHeaderLayout.BaseHeaderLength;
+                var buffer = new byte[baseHeaderLength];
+                _ = PReceiveState.Stream.Read(buffer, 0, baseHeaderLength);
                 var processSuccess = PNetworkChannelHelper.DeserializePacketHeader(buffer);
+                if (!processSuccess)
+                {
+                    return false;
+                }
+
+                var headerLength = PacketReceiveHeaderHandler.PacketHeaderLength;
+                if (headerLength > baseHeaderLength)
+                {
+                    PReceiveState.PrepareForReliableHeaderExtension(buffer, headerLength - baseHeaderLength);
+                    return true;
+                }
+
                 var bodyLength = (int)(PacketReceiveHeaderHandler.PacketLength - PacketReceiveHeaderHandler.PacketHeaderLength);
                 if (bodyLength < 0)
                 {
                     return false;
                 }
+
                 PReceiveState.Reset(bodyLength, PacketReceiveHeaderHandler);
                 return processSuccess;
+            }
+
+            private bool ProcessReliableHeaderExtension()
+            {
+                var baseHeaderLength = PacketHeaderLayout.BaseHeaderLength;
+                var headerLength = PacketReceiveHeaderHandler.PacketHeaderLength;
+                var extensionLength = headerLength - baseHeaderLength;
+                var extraHeader = new byte[extensionLength];
+                _ = PReceiveState.Stream.Read(extraHeader, 0, extensionLength);
+
+                var headerBuffer = new byte[headerLength];
+                Buffer.BlockCopy(PReceiveState.BaseHeaderBuffer, 0, headerBuffer, 0, baseHeaderLength);
+                Buffer.BlockCopy(extraHeader, 0, headerBuffer, baseHeaderLength, extensionLength);
+
+                var processSuccess = PNetworkChannelHelper.DeserializePacketHeader(headerBuffer);
+                if (!processSuccess)
+                {
+                    return false;
+                }
+
+                var bodyLength = (int)(PacketReceiveHeaderHandler.PacketLength - PacketReceiveHeaderHandler.PacketHeaderLength);
+                if (bodyLength < 0)
+                {
+                    return false;
+                }
+
+                PReceiveState.Reset(bodyLength, PacketReceiveHeaderHandler);
+                return true;
             }
 
             /// <summary>

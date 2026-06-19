@@ -100,6 +100,27 @@ namespace GameFrameX.Network.Runtime
         INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout);
 
         /// <summary>
+        /// 创建网络频道。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="rpcTimeout">RPC超时时间</param>
+        /// <param name="serviceType">服务类型。</param>
+        /// <param name="kcpConfig">KCP配置，当 serviceType 为 KCP 类型时使用。</param>
+        /// <returns>要创建的网络频道。</returns>
+        INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout, ServiceType serviceType, KcpConfig kcpConfig);
+
+        /// <summary>
+        /// 创建 KCP 网络频道（URI scheme 自动推断传输层）。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="rpcTimeout">RPC超时时间</param>
+        /// <param name="kcpConfig">KCP配置。</param>
+        /// <returns>要创建的网络频道。</returns>
+        INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout, KcpConfig kcpConfig);
+
+        /// <summary>
         /// 销毁网络频道。
         /// </summary>
         /// <param name="channelName">网络频道名称。</param>

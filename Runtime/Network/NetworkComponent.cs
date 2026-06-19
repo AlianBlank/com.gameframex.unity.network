@@ -182,6 +182,39 @@ namespace GameFrameX.Network.Runtime
         }
 
         /// <summary>
+        /// 创建网络频道。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="serviceType">服务类型。</param>
+        /// <param name="kcpConfig">KCP配置，当 serviceType 为 KCP 类型时使用。</param>
+        /// <returns>要创建的网络频道。</returns>
+        [UnityEngine.Scripting.Preserve]
+        public INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, ServiceType serviceType, KcpConfig kcpConfig = null)
+        {
+            GameFrameworkGuard.NotNullOrEmpty(channelName, nameof(channelName));
+            var networkChannel = m_NetworkManager.CreateNetworkChannel(channelName, networkChannelHelper, m_rpcTimeout, serviceType, kcpConfig);
+            networkChannel.SetIgnoreLogNetworkIds(m_IgnoredSendNetworkIds, m_IgnoredReceiveNetworkIds);
+            return networkChannel;
+        }
+
+        /// <summary>
+        /// 创建 KCP 网络频道（URI scheme 自动推断传输层）。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="kcpConfig">KCP配置。</param>
+        /// <returns>要创建的网络频道。</returns>
+        [UnityEngine.Scripting.Preserve]
+        public INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, KcpConfig kcpConfig)
+        {
+            GameFrameworkGuard.NotNullOrEmpty(channelName, nameof(channelName));
+            var networkChannel = m_NetworkManager.CreateNetworkChannel(channelName, networkChannelHelper, m_rpcTimeout, kcpConfig);
+            networkChannel.SetIgnoreLogNetworkIds(m_IgnoredSendNetworkIds, m_IgnoredReceiveNetworkIds);
+            return networkChannel;
+        }
+
+        /// <summary>
         /// 销毁网络频道。
         /// </summary>
         /// <param name="channelName">网络频道名称。</param>

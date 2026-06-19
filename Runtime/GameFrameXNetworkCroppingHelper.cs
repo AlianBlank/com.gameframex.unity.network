@@ -17,11 +17,15 @@ namespace GameFrameX.Network.Runtime
             _ = typeof(GameFrameX.Network.Runtime.DefaultPacketSendBodyHandler);
             _ = typeof(GameFrameX.Network.Runtime.DefaultPacketSendHeaderHandler);
             _ = typeof(GameFrameX.Network.Runtime.GameFrameXNetworkCroppingHelper);
-            _ = typeof(GameFrameX.Network.Runtime.IMessageSerializer);
+            _ = typeof(GameFrameX.Network.Runtime.IAckControlMessage);
             _ = typeof(GameFrameX.Network.Runtime.IHeartBeatMessage);
+            _ = typeof(GameFrameX.Network.Runtime.IResumeControlMessage);
+            _ = typeof(GameFrameX.Network.Runtime.IKcpTransport);
+            _ = typeof(GameFrameX.Network.Runtime.IServerKickControlMessage);
             _ = typeof(GameFrameX.Network.Runtime.IMessageCompressHandler);
             _ = typeof(GameFrameX.Network.Runtime.IMessageDecompressHandler);
             _ = typeof(GameFrameX.Network.Runtime.IMessageHandler);
+            _ = typeof(GameFrameX.Network.Runtime.IMessageSerializer);
             _ = typeof(GameFrameX.Network.Runtime.INetworkChannel);
             _ = typeof(GameFrameX.Network.Runtime.INetworkChannelHelper);
             _ = typeof(GameFrameX.Network.Runtime.INetworkManager);
@@ -35,10 +39,16 @@ namespace GameFrameX.Network.Runtime
             _ = typeof(GameFrameX.Network.Runtime.IPacketSendHeaderHandler);
             _ = typeof(GameFrameX.Network.Runtime.IRequestMessage);
             _ = typeof(GameFrameX.Network.Runtime.IResponseMessage);
+            _ = typeof(GameFrameX.Network.Runtime.KcpConfig);
+            _ = typeof(GameFrameX.Network.Runtime.KcpTcpTransport);
+            _ = typeof(GameFrameX.Network.Runtime.KcpUdpTransport);
+#if ENABLE_GAME_FRAME_X_WEB_SOCKET
+            _ = typeof(GameFrameX.Network.Runtime.KcpWebSocketTransport);
+#endif
             _ = typeof(GameFrameX.Network.Runtime.MessageHandlerAttribute);
             _ = typeof(GameFrameX.Network.Runtime.MessageHttpObject);
-            _ = typeof(GameFrameX.Network.Runtime.MessageSerializerRegistry);
             _ = typeof(GameFrameX.Network.Runtime.MessageObject);
+            _ = typeof(GameFrameX.Network.Runtime.MessageSerializerRegistry);
             _ = typeof(GameFrameX.Network.Runtime.MessageTypeHandlerAttribute);
             _ = typeof(GameFrameX.Network.Runtime.NetworkClosedEventArgs);
             _ = typeof(GameFrameX.Network.Runtime.NetworkComponent);
@@ -53,6 +63,9 @@ namespace GameFrameX.Network.Runtime
             _ = typeof(GameFrameX.Network.Runtime.NetworkManager.RpcState);
             _ = typeof(GameFrameX.Network.Runtime.NetworkManager.RpcState.RpcMessageData);
             _ = typeof(GameFrameX.Network.Runtime.NetworkManager.SendState);
+            _ = typeof(GameFrameX.Network.Runtime.PendingReliableMessage);
+            _ = typeof(GameFrameX.Network.Runtime.ReliableSequenceGenerator);
+            _ = typeof(GameFrameX.Network.Runtime.ReliableSendQueue);
             _ = typeof(GameFrameX.Network.Runtime.NetworkMissHeartBeatEventArgs);
             _ = typeof(GameFrameX.Network.Runtime.ProtoMessageHandler);
             _ = typeof(GameFrameX.Network.Runtime.ProtoMessageIdHandler);

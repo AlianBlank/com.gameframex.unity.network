@@ -1,17 +1,17 @@
-﻿// ==========================================================================================
+// ==========================================================================================
 //  GameFrameX 组织及其衍生项目的版权、商标、专利及其他相关权利
 //  GameFrameX organization and its derivative projects' copyrights, trademarks, patents, and related rights
 //  均受中华人民共和国及相关国际法律法规保护。
 //  are protected by the laws of the People's Republic of China and relevant international regulations.
-// 
+//
 //  使用本项目须严格遵守相应法律法规及开源许可证之规定。
 //  Usage of this project must strictly comply with applicable laws, regulations, and open-source licenses.
-// 
+//
 //  本项目采用 MIT 许可证与 Apache License 2.0 双许可证分发，
 //  This project is dual-licensed under the MIT License and Apache License 2.0,
 //  完整许可证文本请参见源代码根目录下的 LICENSE 文件。
 //  please refer to the LICENSE file in the root directory of the source code for the full license text.
-// 
+//
 //  禁止利用本项目实施任何危害国家安全、破坏社会秩序、
 //  It is prohibited to use this project to engage in any activities that endanger national security, disrupt social order,
 //  侵犯他人合法权益等法律法规所禁止的行为！
@@ -20,7 +20,7 @@
 //  Any legal disputes and liabilities arising from secondary development based on this project
 //  本项目组织与贡献者概不承担。
 //  shall be borne solely by the developer; the project organization and contributors assume no responsibility.
-// 
+//
 //  GitHub 仓库：https://github.com/GameFrameX
 //  GitHub Repository: https://github.com/GameFrameX
 //  Gitee  仓库：https://gitee.com/GameFrameX
@@ -29,83 +29,56 @@
 //  Official Documentation: https://gameframex.doc.alianblank.com/
 // ==========================================================================================
 
+using System;
+
 namespace GameFrameX.Network.Runtime
 {
     /// <summary>
-    /// 网络消息包头接口。
+    /// KCP 传输层接口。
     /// </summary>
-    public interface IPacketReceiveHeaderHandler
+    [UnityEngine.Scripting.Preserve]
+    public interface IKcpTransport : IDisposable
     {
         /// <summary>
-        /// 获取网络消息包长度。
+        /// 获取是否已连接。
         /// </summary>
-        uint PacketLength { get; }
+        bool IsConnected { get; }
 
         /// <summary>
-        /// 消息包头长度
+        /// 连接到远程端点。
         /// </summary>
-        ushort PacketHeaderLength { get; }
+        /// <param name="address">远程地址。</param>
+        void Connect(Uri address);
 
         /// <summary>
-        /// 获取网络消息包协议编号。
+        /// 发送原始数据。
         /// </summary>
-        int Id { get; }
+        /// <param name="data">要发送的数据。</param>
+        /// <param name="offset">数据偏移量。</param>
+        /// <param name="count">数据长度。</param>
+        void SendRaw(byte[] data, int offset, int count);
 
         /// <summary>
-        /// 消息唯一编号
+        /// 关闭传输连接。
         /// </summary>
-        int UniqueId { get; }
+        void Close();
 
         /// <summary>
-        /// 消息操作类型
+        /// 设置连接成功回调。
         /// </summary>
-        byte OperationType { get; }
+        /// <param name="onConnected">连接成功回调。</param>
+        void SetOnConnected(Action onConnected);
 
         /// <summary>
-        /// 压缩标记
+        /// 设置数据接收回调。
         /// </summary>
-        byte ZipFlag { get; }
+        /// <param name="onDataReceived">数据接收回调。</param>
+        void SetOnDataReceived(Action<byte[], int> onDataReceived);
 
         /// <summary>
-        /// 协议头标记。
+        /// 设置连接关闭回调。
         /// </summary>
-        ushort HeaderFlags { get; }
-
-        /// <summary>
-        /// 协议版本。
-        /// </summary>
-        ushort ProtocolVersion { get; }
-
-        /// <summary>
-        /// 是否携带可靠扩展头。
-        /// </summary>
-        bool HasReliableExtension { get; }
-
-        /// <summary>
-        /// 是否为重复响应。
-        /// </summary>
-        bool IsDuplicate { get; }
-
-        /// <summary>
-        /// 会话编号。
-        /// </summary>
-        ulong SessionId { get; }
-
-        /// <summary>
-        /// 可靠消息序号。
-        /// </summary>
-        ulong ReliableSequence { get; }
-
-        /// <summary>
-        /// ACK 序号。
-        /// </summary>
-        ulong AckSequence { get; }
-
-        /// <summary>
-        /// 消息包处理
-        /// </summary>
-        /// <param name="source"></param>
-        /// <returns></returns>
-        bool Handler(object source);
+        /// <param name="onClosed">连接关闭回调。</param>
+        void SetOnClosed(Action onClosed);
     }
 }

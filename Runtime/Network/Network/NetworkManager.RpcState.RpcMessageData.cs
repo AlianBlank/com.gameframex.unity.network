@@ -56,6 +56,11 @@ namespace GameFrameX.Network.Runtime
                     m_Tcs.SetResult(responseMessage);
                 }
 
+                public void Fail(Exception exception)
+                {
+                    m_Tcs.TrySetException(exception ?? new Exception("RPC failed."));
+                }
+
                 /// <summary>
                 /// 增加时间。如果超时返回true
                 /// </summary>

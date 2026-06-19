@@ -94,6 +94,8 @@ namespace GameFrameX.Network.Runtime
             protected readonly ReceiveState PReceiveState;
             protected readonly HeartBeatState PHeartBeatState;
             protected readonly RpcState PRpcState;
+            protected readonly ReliableSequenceGenerator PReliableSequenceGenerator;
+            protected readonly ReliableSendQueue PReliableSendQueue;
 
             /// <summary>
             /// 是否验证地址
@@ -159,6 +161,7 @@ namespace GameFrameX.Network.Runtime
             public Action<NetworkChannelBase, bool> NetworkChannelActiveChanged;
             public Action<NetworkChannelBase, int> NetworkChannelMissHeartBeat;
             public Action<NetworkChannelBase, NetworkErrorCode, SocketError, string> NetworkChannelError;
+            public Action<NetworkChannelBase, NetworkLivenessEventArgs> NetworkChannelLivenessChanged;
 
             /// <summary>
             /// 初始化网络频道基类的新实例。
@@ -181,6 +184,8 @@ namespace GameFrameX.Network.Runtime
                 PReceiveState = new ReceiveState();
                 PHeartBeatState = new HeartBeatState();
                 PRpcState = new RpcState(rpcTimeout);
+                PReliableSequenceGenerator = new ReliableSequenceGenerator();
+                PReliableSendQueue = new ReliableSendQueue();
                 m_SentPacketCount = 0;
                 m_ReceivedPacketCount = 0;
                 PActive = false;
@@ -191,6 +196,8 @@ namespace GameFrameX.Network.Runtime
                 NetworkChannelClosed = null;
                 NetworkChannelMissHeartBeat = null;
                 NetworkChannelError = null;
+                NetworkChannelLivenessChanged = null;
+                LivenessState = NetworkLivenessState.Connected;
 
                 networkChannelHelper.Initialize(this);
             }
@@ -201,6 +208,11 @@ namespace GameFrameX.Network.Runtime
             /// 获取网络频道名称。
             /// </summary>
             public string Name { get; }
+
+            /// <summary>
+            /// 获取统一网络活性状态。
+            /// </summary>
+            public NetworkLivenessState LivenessState { get; private set; }
 
             /// <summary>
             /// 获取网络频道所使用的 Socket。
@@ -246,6 +258,319 @@ namespace GameFrameX.Network.Runtime
                         return PSendPacketPool.Count;
                     }
                 }
+            }
+
+            /// <summary>
+            /// 获取可靠 pending 队列中的消息数量。
+            /// </summary>
+            public int ReliablePendingCount
+            {
+                get { return PReliableSendQueue.Count; }
+            }
+
+            /// <summary>
+            /// 获取下一条将分配的可靠序号。
+            /// </summary>
+            public ulong NextReliableSequence
+            {
+                get { return PReliableSequenceGenerator.PeekNext(); }
+            }
+
+            /// <summary>
+            /// 累计确认并清理已确认的业务 pending 消息。
+            /// </summary>
+            /// <param name="ackSequence">已确认的序号。</param>
+            /// <returns>被清理的消息数量。</returns>
+            public int AcknowledgeReliablePendingThrough(ulong ackSequence)
+            {
+                return AcknowledgeReliablePendingThrough(0ul, ackSequence, out _);
+            }
+
+            /// <summary>
+            /// 累计确认并清理已确认的业务 pending 消息，同时输出 ACK 诊断信息。
+            /// </summary>
+            /// <param name="sessionId">会话编号。</param>
+            /// <param name="ackSequence">已确认的序号。</param>
+            /// <param name="diagnostics">ACK 诊断信息。</param>
+            /// <returns>被清理的消息数量。</returns>
+            public int AcknowledgeReliablePendingThrough(ulong sessionId, ulong ackSequence, out NetworkLivenessEventArgs diagnostics)
+            {
+                var removedCount = PReliableSendQueue.AcknowledgeThrough(ackSequence);
+                var diagnosticMessage = Utility.Text.Format(
+                    "ACK received. ChannelName={0}, TransportType={1}, Reason={2}, SessionId={3}, AckSequence={4}, RemovedCount={5}, PendingCount={6}.",
+                    Name,
+                    PAddressFamily.ToString(),
+                    NetworkLivenessReason.AckReceived,
+                    sessionId,
+                    ackSequence,
+                    removedCount,
+                    ReliablePendingCount);
+                diagnostics = NetworkLivenessEventArgs.Create(
+                    Name,
+                    NetworkLivenessInputEvent.AckReceived,
+                    NetworkLivenessState.Connected,
+                    NetworkLivenessReason.AckReceived,
+                    PAddressFamily.ToString(),
+                    sessionId,
+                    ackSequence,
+                    ReliablePendingCount,
+                    HeartBeatElapseSeconds,
+                    false,
+                    0,
+                    diagnosticMessage);
+                NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                return removedCount;
+            }
+
+            /// <summary>
+            /// 处理 Resume 结果。
+            /// </summary>
+            /// <param name="accepted">是否接受恢复。</param>
+            /// <param name="sessionId">会话编号。</param>
+            /// <param name="ackSequence">服务端确认到的序号。</param>
+            /// <param name="diagnostics">诊断信息。</param>
+            /// <returns>接受恢复返回 true，否则返回 false。</returns>
+            public bool HandleResumeResult(bool accepted, ulong sessionId, ulong ackSequence, out NetworkLivenessEventArgs diagnostics)
+            {
+                if (accepted)
+                {
+                    AcknowledgeReliablePendingThrough(sessionId, ackSequence, out diagnostics);
+                    HandleLivenessInput(NetworkLivenessInputEvent.ResumeAccepted, NetworkLivenessReason.ResumeAccepted);
+                    diagnostics = NetworkLivenessEventArgs.Create(
+                        Name,
+                        NetworkLivenessInputEvent.ResumeAccepted,
+                        NetworkLivenessState.Connected,
+                        NetworkLivenessReason.ResumeAccepted,
+                        PAddressFamily.ToString(),
+                        sessionId,
+                        ackSequence,
+                        ReliablePendingCount,
+                        HeartBeatElapseSeconds,
+                        false,
+                        0,
+                        Utility.Text.Format(
+                            "Resume result accepted. ChannelName={0}, TransportType={1}, Reason={2}, SessionId={3}, AckSequence={4}, PendingCount={5}, Accepted=True.",
+                            Name,
+                            PAddressFamily.ToString(),
+                            NetworkLivenessReason.ResumeAccepted,
+                            sessionId,
+                            ackSequence,
+                            ReliablePendingCount));
+                    NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                    return true;
+                }
+
+                HandleLivenessInput(NetworkLivenessInputEvent.ResumeRejected, NetworkLivenessReason.ResumeRejected);
+                diagnostics = NetworkLivenessEventArgs.Create(
+                    Name,
+                    NetworkLivenessInputEvent.ResumeRejected,
+                    NetworkLivenessState.BusinessReconnecting,
+                    NetworkLivenessReason.ResumeRejected,
+                    PAddressFamily.ToString(),
+                    sessionId,
+                    ackSequence,
+                    ReliablePendingCount,
+                    HeartBeatElapseSeconds,
+                    true,
+                    0,
+                    Utility.Text.Format(
+                        "Resume result rejected. ChannelName={0}, TransportType={1}, Reason={2}, SessionId={3}, AckSequence={4}, PendingCount={5}, Accepted=False.",
+                        Name,
+                        PAddressFamily.ToString(),
+                        NetworkLivenessReason.ResumeRejected,
+                        sessionId,
+                        ackSequence,
+                        ReliablePendingCount));
+                NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                return false;
+            }
+
+            /// <summary>
+            /// 按 FIFO 顺序补发仍未 ACK 的可靠 pending 消息。
+            /// </summary>
+            /// <returns>补发调度的消息数量。</returns>
+            public int ReplayReliablePendingMessages()
+            {
+                var pendingMessages = PReliableSendQueue.Snapshot();
+                if (pendingMessages.Length <= 0)
+                {
+                    return 0;
+                }
+
+                lock (PSendPacketPool)
+                {
+                    foreach (var pendingMessage in pendingMessages)
+                    {
+                        pendingMessage.MarkRetried(HeartBeatElapseSeconds);
+                        PSendPacketPool.AddLast(pendingMessage.MessageObject);
+                    }
+                }
+
+                return pendingMessages.Length;
+            }
+
+            /// <summary>
+            /// 处理 Resume 失败后的清理。
+            /// </summary>
+            /// <param name="reason">失败原因。</param>
+            /// <param name="rpcState">需要失败化的 RPC 状态。</param>
+            /// <returns>被清理的 pending 数量。</returns>
+            public int ClearReliablePendingForResumeFailure(string reason, RpcState rpcState)
+            {
+                var removedCount = PReliableSendQueue.Count;
+                PReliableSendQueue.Clear();
+                PReliableSequenceGenerator.Reset(ReliableFifoServerContract.InitialReliableSequence);
+                rpcState?.FailAll(new GameFrameworkException(reason ?? "Resume failed."));
+                HandleLivenessInput(NetworkLivenessInputEvent.ResumeRejected, NetworkLivenessReason.ResumeRejected, reason);
+                return removedCount;
+            }
+
+            /// <summary>
+            /// 处理当前通道 Resume 失败后的可靠会话清理。
+            /// </summary>
+            /// <param name="reason">失败原因。</param>
+            /// <returns>被清理的 pending 数量。</returns>
+            public int FailReliableSessionForResumeFailure(string reason)
+            {
+                return ClearReliablePendingForResumeFailure(reason, PRpcState);
+            }
+
+            /// <summary>
+            /// 判断当前 Resume 是否仍处于静默恢复窗口和服务端会话 TTL 内。
+            /// </summary>
+            /// <param name="silentElapsedSeconds">静默恢复已流逝秒数。</param>
+            /// <param name="sessionAgeSeconds">服务端会话已存在秒数。</param>
+            /// <param name="sessionId">会话编号。</param>
+            /// <param name="diagnostics">诊断信息。</param>
+            /// <returns>仍可恢复返回 true，否则返回 false。</returns>
+            public bool EvaluateResumeBoundary(float silentElapsedSeconds, float sessionAgeSeconds, ulong sessionId, out NetworkLivenessEventArgs diagnostics)
+            {
+                if (sessionAgeSeconds > ReliableFifoProtocolOptions.ServerSessionTtlSeconds)
+                {
+                    diagnostics = CreateResumeBoundaryDiagnostics(
+                        NetworkLivenessState.BusinessReconnecting,
+                        NetworkLivenessReason.SessionExpired,
+                        sessionId,
+                        silentElapsedSeconds,
+                        false,
+                        Utility.Text.Format(
+                            "Resume rejected because server session expired. ChannelName={0}, SessionId={1}, SilentElapsedSeconds={2}, SessionAgeSeconds={3}, ServerSessionTtlSeconds={4}.",
+                            Name,
+                            sessionId,
+                            silentElapsedSeconds,
+                            sessionAgeSeconds,
+                            ReliableFifoProtocolOptions.ServerSessionTtlSeconds));
+                    NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                    LivenessState = NetworkLivenessState.BusinessReconnecting;
+                    return false;
+                }
+
+                if (silentElapsedSeconds > ReliableFifoProtocolOptions.SilentResumeWindowSeconds)
+                {
+                    diagnostics = CreateResumeBoundaryDiagnostics(
+                        NetworkLivenessState.BusinessReconnecting,
+                        NetworkLivenessReason.ResumeRejected,
+                        sessionId,
+                        silentElapsedSeconds,
+                        false,
+                        Utility.Text.Format(
+                            "Resume rejected because silent window expired. ChannelName={0}, SessionId={1}, SilentElapsedSeconds={2}, SilentResumeWindowSeconds={3}.",
+                            Name,
+                            sessionId,
+                            silentElapsedSeconds,
+                            ReliableFifoProtocolOptions.SilentResumeWindowSeconds));
+                    NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                    LivenessState = NetworkLivenessState.BusinessReconnecting;
+                    return false;
+                }
+
+                diagnostics = CreateResumeBoundaryDiagnostics(
+                    NetworkLivenessState.Resuming,
+                    NetworkLivenessReason.ResumeStarted,
+                    sessionId,
+                    silentElapsedSeconds,
+                    true,
+                    Utility.Text.Format(
+                        "Resume is within silent window and session TTL. ChannelName={0}, SessionId={1}, SilentElapsedSeconds={2}, SessionAgeSeconds={3}.",
+                        Name,
+                        sessionId,
+                        silentElapsedSeconds,
+                        sessionAgeSeconds));
+                NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+                LivenessState = NetworkLivenessState.Resuming;
+                return true;
+            }
+
+            /// <summary>
+            /// 处理服务器踢人类控制语义。
+            /// </summary>
+            /// <param name="reason">踢人原因。</param>
+            /// <param name="sessionId">会话编号。</param>
+            /// <param name="diagnostics">诊断信息。</param>
+            public void HandleServerKickControl(string reason, ulong sessionId, out NetworkLivenessEventArgs diagnostics)
+            {
+                var effectiveReason = string.IsNullOrEmpty(reason) ? NetworkLivenessReason.ServerKick : reason;
+                LivenessState = NetworkLivenessState.BusinessReconnecting;
+                diagnostics = NetworkLivenessEventArgs.Create(
+                    Name,
+                    NetworkLivenessInputEvent.ResumeRejected,
+                    NetworkLivenessState.BusinessReconnecting,
+                    effectiveReason,
+                    PAddressFamily.ToString(),
+                    sessionId,
+                    0ul,
+                    ReliablePendingCount,
+                    HeartBeatElapseSeconds,
+                    false,
+                    0,
+                    Utility.Text.Format(
+                        "Server kick control received. ChannelName={0}, TransportType={1}, Reason={2}, SessionId={3}, PendingCount={4}.",
+                        Name,
+                        PAddressFamily.ToString(),
+                        effectiveReason,
+                        sessionId,
+                        ReliablePendingCount));
+                NetworkChannelLivenessChanged?.Invoke(this, diagnostics);
+            }
+
+            /// <summary>
+            /// 处理服务器踢人后的业务重连清理。
+            /// </summary>
+            /// <param name="reason">原因。</param>
+            /// <returns>清理的 pending 数量。</returns>
+            public int FailReliableSessionForBusinessReconnect(string reason)
+            {
+                var removedCount = PReliableSendQueue.Count;
+                PReliableSendQueue.Clear();
+                PReliableSequenceGenerator.Reset(ReliableFifoServerContract.InitialReliableSequence);
+                PRpcState.FailAll(new GameFrameworkException(reason ?? NetworkLivenessReason.ServerKick));
+                HandleLivenessInput(NetworkLivenessInputEvent.ResumeRejected, reason ?? NetworkLivenessReason.ServerKick, reason);
+                return removedCount;
+            }
+
+            private NetworkLivenessEventArgs CreateResumeBoundaryDiagnostics(
+                NetworkLivenessState state,
+                string reason,
+                ulong sessionId,
+                float elapsedSeconds,
+                bool recoverable,
+                string message)
+            {
+                return NetworkLivenessEventArgs.Create(
+                    Name,
+                    reason == NetworkLivenessReason.ResumeStarted
+                        ? NetworkLivenessInputEvent.ResumeStarted
+                        : NetworkLivenessInputEvent.ResumeRejected,
+                    state,
+                    reason,
+                    PAddressFamily.ToString(),
+                    sessionId,
+                    0ul,
+                    ReliablePendingCount,
+                    elapsedSeconds,
+                    recoverable,
+                    0,
+                    message);
             }
 
             /// <summary>
@@ -397,7 +722,7 @@ namespace GameFrameX.Network.Runtime
             /// <summary>
             /// 处理接收到的消息
             /// </summary>
-            private void ProcessReceivedMessage()
+            protected void ProcessReceivedMessage()
             {
                 while (m_ExecutionMessageQueue.TryDequeue(out var messageObject))
                 {
@@ -436,7 +761,7 @@ namespace GameFrameX.Network.Runtime
             /// 处理心跳
             /// </summary>
             /// <param name="realElapseSeconds"></param>
-            private void ProcessHeartBeat(float realElapseSeconds)
+            protected void ProcessHeartBeat(float realElapseSeconds)
             {
                 if (PHeartBeatInterval > 0f)
                 {
@@ -485,6 +810,95 @@ namespace GameFrameX.Network.Runtime
                         Close(NetworkCloseReason.MissHeartBeat, (ushort)NetworkErrorCode.MissHeartBeatError);
                     }
                 }
+            }
+
+            /// <summary>
+            /// 处理统一活性状态机输入。
+            /// </summary>
+            /// <param name="inputEvent">输入事件。</param>
+            /// <param name="reason">原因。</param>
+            /// <param name="message">诊断消息。</param>
+            [UnityEngine.Scripting.Preserve]
+            public void HandleLivenessInput(string inputEvent, string reason, string message = null, int? pendingCount = null)
+            {
+                var nextState = ResolveLivenessState(inputEvent, reason);
+                LivenessState = nextState;
+                var effectivePendingCount = pendingCount ?? SendPacketCount;
+                var diagnosticMessage = message;
+                if (reason == ReliableFifoProtocolOptions.PendingQueueOverflowReason)
+                {
+                    diagnosticMessage = Utility.Text.Format("{0} ChannelName={1}, PendingCount={2}.", message, Name, effectivePendingCount);
+                }
+                var eventArgs = NetworkLivenessEventArgs.Create(
+                    Name,
+                    inputEvent,
+                    nextState,
+                    reason,
+                    PAddressFamily.ToString(),
+                    0ul,
+                    0ul,
+                    effectivePendingCount,
+                    HeartBeatElapseSeconds,
+                    nextState == NetworkLivenessState.SuspectDisconnected ||
+                    nextState == NetworkLivenessState.SilentReconnecting ||
+                    nextState == NetworkLivenessState.Resuming,
+                    0,
+                    diagnosticMessage);
+
+                NetworkChannelLivenessChanged?.Invoke(this, eventArgs);
+                ReferencePool.Release(eventArgs);
+            }
+
+            private static NetworkLivenessState ResolveLivenessState(string inputEvent, string reason)
+            {
+                if (inputEvent == NetworkLivenessInputEvent.ClosedByUser)
+                {
+                    return NetworkLivenessState.Closed;
+                }
+
+                if (IsBusinessReconnectReason(reason) ||
+                    inputEvent == NetworkLivenessInputEvent.ResumeRejected)
+                {
+                    return NetworkLivenessState.BusinessReconnecting;
+                }
+
+                if (inputEvent == NetworkLivenessInputEvent.TransportDisconnected ||
+                    inputEvent == NetworkLivenessInputEvent.TransportError ||
+                    inputEvent == NetworkLivenessInputEvent.HeartbeatTimeout ||
+                    inputEvent == NetworkLivenessInputEvent.NoPacketTimeout)
+                {
+                    return NetworkLivenessState.SuspectDisconnected;
+                }
+
+                if (inputEvent == NetworkLivenessInputEvent.ResumeStarted)
+                {
+                    return NetworkLivenessState.Resuming;
+                }
+
+                if (inputEvent == NetworkLivenessInputEvent.ResumeAccepted ||
+                    inputEvent == NetworkLivenessInputEvent.PacketReceived ||
+                    inputEvent == NetworkLivenessInputEvent.HeartbeatAckReceived ||
+                    inputEvent == NetworkLivenessInputEvent.TransportConnected)
+                {
+                    return NetworkLivenessState.Connected;
+                }
+
+                return NetworkLivenessState.Connected;
+            }
+
+            /// <summary>
+            /// 判断原因是否必须交给业务层重连处理。
+            /// </summary>
+            /// <param name="reason">原因。</param>
+            /// <returns>需要业务重连时返回 true。</returns>
+            public static bool IsBusinessReconnectReason(string reason)
+            {
+                return reason == NetworkLivenessReason.ServerKick ||
+                       reason == NetworkLivenessReason.DuplicateLogin ||
+                       reason == NetworkLivenessReason.SessionReplaced ||
+                       reason == NetworkLivenessReason.AccountBanned ||
+                       reason == NetworkLivenessReason.AdminKick ||
+                       reason == NetworkLivenessReason.SessionExpired;
             }
 
             /// <summary>
@@ -754,6 +1168,9 @@ namespace GameFrameX.Network.Runtime
                         PSendPacketPool.Clear();
                     }
 
+                    PReliableSendQueue.Clear();
+                    PReliableSequenceGenerator.Reset(ReliableFifoServerContract.InitialReliableSequence);
+
                     lock (PHeartBeatState)
                     {
                         PHeartBeatState.Reset(true);
@@ -823,10 +1240,97 @@ namespace GameFrameX.Network.Runtime
                     throw new GameFrameworkException(errorMessage);
                 }
 
+                if (ShouldEnqueueReliableBusinessMessage(messageObject))
+                {
+                    if (!TrySerializePendingMessage(messageObject, out var messageBodyBuffer))
+                    {
+                        return;
+                    }
+
+                    var reliableSequence = PReliableSequenceGenerator.Next();
+                    var pendingMessage = PendingReliableMessage.Create(
+                        0ul,
+                        reliableSequence,
+                        0ul,
+                        messageObject,
+                        messageBodyBuffer,
+                        0f);
+                    if (!PReliableSendQueue.CanEnqueue(pendingMessage))
+                    {
+                        PReliableSendQueue.Clear();
+                        PReliableSequenceGenerator.Reset(ReliableFifoServerContract.InitialReliableSequence);
+                        HandleLivenessInput(
+                            NetworkLivenessInputEvent.ResumeRejected,
+                            ReliableFifoProtocolOptions.PendingQueueOverflowReason,
+                            "Reliable pending queue capacity exceeded.",
+                            ReliablePendingCount);
+                        throw new GameFrameworkException("Reliable pending queue capacity exceeded.");
+                    }
+
+                    PReliableSendQueue.Enqueue(pendingMessage);
+                }
+
                 lock (PSendPacketPool)
                 {
                     PSendPacketPool.AddLast(messageObject);
                 }
+            }
+
+            /// <summary>
+            /// 判断消息是否应进入业务可靠 FIFO。
+            /// </summary>
+            /// <param name="messageObject">消息对象。</param>
+            /// <returns>需要可靠 FIFO 管理时返回 true；控制包返回 false。</returns>
+            protected virtual bool ShouldEnqueueReliableBusinessMessage(MessageObject messageObject)
+            {
+                return !(messageObject is IHeartBeatMessage) &&
+                       !(messageObject is IAckControlMessage) &&
+                       !(messageObject is IResumeControlMessage) &&
+                       !(messageObject is IServerKickControlMessage);
+            }
+
+            /// <summary>
+            /// 先序列化消息以便校验 pending 单包上限。
+            /// </summary>
+            /// <param name="messageObject">消息对象。</param>
+            /// <param name="messageBodyBuffer">消息体缓冲区。</param>
+            /// <returns>序列化并校验成功返回 true。</returns>
+            protected virtual bool TrySerializePendingMessage(MessageObject messageObject, out byte[] messageBodyBuffer)
+            {
+                if (!PNetworkChannelHelper.SerializePacketHeader(messageObject, PSendState.Stream, out messageBodyBuffer))
+                {
+                    ResetPendingSerializationStream();
+                    const string errorMessage = "Serialized packet failure.";
+                    if (NetworkChannelError != null)
+                    {
+                        NetworkChannelError(this, NetworkErrorCode.SerializeError, SocketError.Success, errorMessage);
+                        return false;
+                    }
+
+                    throw new GameFrameworkException(errorMessage);
+                }
+
+                ResetPendingSerializationStream();
+                if (messageBodyBuffer != null &&
+                    messageBodyBuffer.Length > ReliableFifoProtocolOptions.PendingMessageMaxBytes)
+                {
+                    const string errorMessage = "Pending message exceeds ReliableFifoProtocolOptions.PendingMessageMaxBytes.";
+                    if (NetworkChannelError != null)
+                    {
+                        NetworkChannelError(this, NetworkErrorCode.SendError, SocketError.Success, errorMessage);
+                        return false;
+                    }
+
+                    throw new GameFrameworkException(errorMessage);
+                }
+
+                return true;
+            }
+
+            private void ResetPendingSerializationStream()
+            {
+                PSendState.Stream.SetLength(0L);
+                PSendState.Stream.Position = 0L;
             }
 
             /// <summary>

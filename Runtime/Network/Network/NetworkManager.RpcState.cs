@@ -206,6 +206,32 @@ namespace GameFrameX.Network.Runtime
             }
 
             /// <summary>
+            /// 让所有等待中的 RPC 立即失败。
+            /// </summary>
+            /// <param name="exception">失败原因。</param>
+            /// <returns>被失败化的 RPC 数量。</returns>
+            public int FailAll(Exception exception)
+            {
+                var failedCount = 0;
+                foreach (var kvp in _waitingReplyHandlingObjects)
+                {
+                    try
+                    {
+                        kvp.Value.Fail(exception);
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Fatal(e);
+                    }
+
+                    failedCount++;
+                }
+
+                _waitingReplyHandlingObjects.Clear();
+                return failedCount;
+            }
+
+            /// <summary>
             /// 设置RPC错误Code的处理函数
             /// </summary>
             /// <param name="handler">处理函数</param>

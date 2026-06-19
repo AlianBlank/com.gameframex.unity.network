@@ -22,7 +22,7 @@ namespace GameFrameX.Network.Runtime
         Udp = 2,
 
         /// <summary>
-        /// KCP 网络服务。
+        /// KCP over UDP 网络服务。
         /// </summary>
         Kcp = 3,
 
@@ -30,5 +30,20 @@ namespace GameFrameX.Network.Runtime
         /// WebSocket 网络服务。
         /// </summary>
         WebSocket = 4,
+
+        /// <summary>
+        /// KCP over UDP 网络服务。
+        /// </summary>
+        KcpUdp = 5,
+
+        /// <summary>
+        /// KCP over TCP 网络服务。
+        /// </summary>
+        KcpTcp = 6,
+
+        /// <summary>
+        /// KCP over WebSocket 网络服务。
+        /// </summary>
+        KcpWebSocket = 7,
     }
 }

@@ -16,36 +16,9 @@ namespace GameFrameX.Network.Runtime
         /// Channel-level message serializer; falls back to the global serializer when null.
         /// </remarks>
         internal IMessageSerializer ChannelSerializer { get; set; }
-        /// <summary>
-        /// 网络包长度
-        /// </summary>
-        private const int NetPacketLength = sizeof(uint);
-
-        /// <summary>
-        /// 消息码
-        /// </summary>
-        private const int NetCmdIdLength = sizeof(int);
-
-        /// <summary>
-        /// 消息操作类型长度
-        /// </summary>
-        private const int NetOperationTypeLength = sizeof(byte);
-
-        /// <summary>
-        /// 消息压缩标记长度
-        /// </summary>
-        private const int NetZipFlagLength = sizeof(byte);
-
-        /// <summary>
-        /// 消息编号
-        /// </summary>
-        private const int NetUniqueIdLength = sizeof(int);
-
-
         public DefaultPacketSendHeaderHandler()
         {
-            // 4 + 1 + 1 + 4 + 4
-            PacketHeaderLength = NetPacketLength + NetOperationTypeLength + NetZipFlagLength + NetUniqueIdLength + NetCmdIdLength;
+            PacketHeaderLength = PacketHeaderLayout.BaseHeaderLength;
             m_CachedByte = new byte[PacketHeaderLength];
         }
 
@@ -113,6 +86,8 @@ namespace GameFrameX.Network.Runtime
             m_CachedByte.WriteByte((byte)(ProtoMessageIdHandler.IsHeartbeat(messageType) ? 1 : 4), ref offset);
             // 消息压缩标记
             m_CachedByte.WriteByte((byte)(IsZip ? 1 : 0), ref offset);
+            // 协议标记
+            m_CachedByte.WriteUShort(PacketHeaderFlags.WithProtocolVersion(0), ref offset);
             // 消息编号
             m_CachedByte.WriteInt(messageObject.UniqueId, ref offset);
             // 消息ID

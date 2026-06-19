@@ -71,6 +71,36 @@ namespace GameFrameX.Network.Runtime
         /// 缺失心跳关闭。
         /// </summary>
         public const string MissHeartBeat = "MissHeartBeat";
+
+        /// <summary>
+        /// 服务器踢人关闭。
+        /// </summary>
+        public const string ServerKick = "ServerKick";
+
+        /// <summary>
+        /// 重复登录关闭。
+        /// </summary>
+        public const string DuplicateLogin = "DuplicateLogin";
+
+        /// <summary>
+        /// 会话替换关闭。
+        /// </summary>
+        public const string SessionReplaced = "SessionReplaced";
+
+        /// <summary>
+        /// 账号封禁关闭。
+        /// </summary>
+        public const string AccountBanned = "AccountBanned";
+
+        /// <summary>
+        /// 管理员踢人关闭。
+        /// </summary>
+        public const string AdminKick = "AdminKick";
+
+        /// <summary>
+        /// 会话过期关闭。
+        /// </summary>
+        public const string SessionExpired = "SessionExpired";
     }
 
     /// <summary>
@@ -133,5 +163,35 @@ namespace GameFrameX.Network.Runtime
         /// 资源释放错误。
         /// </summary>
         DisposeError,
+
+        /// <summary>
+        /// 服务器踢人错误。
+        /// </summary>
+        ServerKickError,
+
+        /// <summary>
+        /// 重复登录错误。
+        /// </summary>
+        DuplicateLoginError,
+
+        /// <summary>
+        /// 会话替换错误。
+        /// </summary>
+        SessionReplacedError,
+
+        /// <summary>
+        /// 账号封禁错误。
+        /// </summary>
+        AccountBannedError,
+
+        /// <summary>
+        /// 管理员踢人错误。
+        /// </summary>
+        AdminKickError,
+
+        /// <summary>
+        /// 会话过期错误。
+        /// </summary>
+        SessionExpiredError,
     }
 }

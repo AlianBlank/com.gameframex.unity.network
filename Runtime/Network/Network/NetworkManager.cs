@@ -135,10 +135,7 @@ namespace GameFrameX.Network.Runtime
             foreach (var networkChannel in m_NetworkChannels)
             {
                 var networkChannelBase = networkChannel.Value;
-                networkChannelBase.NetworkChannelConnected -= OnNetworkChannelConnected;
-                networkChannelBase.NetworkChannelClosed -= OnNetworkChannelClosed;
-                networkChannelBase.NetworkChannelMissHeartBeat -= OnNetworkChannelMissHeartBeat;
-                networkChannelBase.NetworkChannelError -= OnNetworkChannelError;
+                UnregisterChannelEvents(networkChannelBase);
                 networkChannelBase.Shutdown();
             }
 
@@ -210,6 +207,20 @@ namespace GameFrameX.Network.Runtime
         /// <returns>要创建的网络频道。</returns>
         public INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout)
         {
+            return CreateNetworkChannel(channelName, networkChannelHelper, rpcTimeout, ServiceType.Tcp, null);
+        }
+
+        /// <summary>
+        /// 创建网络频道。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="rpcTimeout">RPC超时时间</param>
+        /// <param name="serviceType">服务类型。</param>
+        /// <param name="kcpConfig">KCP配置。</param>
+        /// <returns>要创建的网络频道。</returns>
+        public INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout, ServiceType serviceType, KcpConfig kcpConfig)
+        {
             GameFrameworkGuard.NotNullOrEmpty(channelName, nameof(channelName));
             GameFrameworkGuard.NotNull(networkChannelHelper, nameof(networkChannelHelper));
 
@@ -217,15 +228,58 @@ namespace GameFrameX.Network.Runtime
             {
                 throw new GameFrameworkException(Utility.Text.Format("Already exist network channel '{0}'.", channelName ?? string.Empty));
             }
+
+            NetworkChannelBase networkChannel;
+            switch (serviceType)
+            {
+                case ServiceType.Kcp:
+                case ServiceType.KcpUdp:
+                case ServiceType.KcpTcp:
+                case ServiceType.KcpWebSocket:
+                {
+                    networkChannel = new KcpNetworkChannel(channelName, networkChannelHelper, rpcTimeout, serviceType, kcpConfig);
+                    break;
+                }
 #if (ENABLE_GAME_FRAME_X_WEB_SOCKET && UNITY_WEBGL) || FORCE_ENABLE_GAME_FRAME_X_WEB_SOCKET
-            NetworkChannelBase networkChannel = new WebSocketNetworkChannel(channelName, networkChannelHelper, rpcTimeout);
+                default:
+                {
+                    networkChannel = new WebSocketNetworkChannel(channelName, networkChannelHelper, rpcTimeout);
+                    break;
+                }
 #else
-            NetworkChannelBase networkChannel = new SystemTcpNetworkChannel(channelName, networkChannelHelper, rpcTimeout);
+                default:
+                {
+                    networkChannel = new SystemTcpNetworkChannel(channelName, networkChannelHelper, rpcTimeout);
+                    break;
+                }
 #endif
-            networkChannel.NetworkChannelConnected += OnNetworkChannelConnected;
-            networkChannel.NetworkChannelClosed += OnNetworkChannelClosed;
-            networkChannel.NetworkChannelMissHeartBeat += OnNetworkChannelMissHeartBeat;
-            networkChannel.NetworkChannelError += OnNetworkChannelError;
+            }
+
+            RegisterChannelEvents(networkChannel);
+            m_NetworkChannels.Add(channelName, networkChannel);
+            return networkChannel;
+        }
+
+        /// <summary>
+        /// 创建 KCP 网络频道（URI scheme 自动推断传输层）。
+        /// </summary>
+        /// <param name="channelName">网络频道名称。</param>
+        /// <param name="networkChannelHelper">网络频道辅助器。</param>
+        /// <param name="rpcTimeout">RPC超时时间</param>
+        /// <param name="kcpConfig">KCP配置。</param>
+        /// <returns>要创建的网络频道。</returns>
+        public INetworkChannel CreateNetworkChannel(string channelName, INetworkChannelHelper networkChannelHelper, int rpcTimeout, KcpConfig kcpConfig)
+        {
+            GameFrameworkGuard.NotNullOrEmpty(channelName, nameof(channelName));
+            GameFrameworkGuard.NotNull(networkChannelHelper, nameof(networkChannelHelper));
+
+            if (HasNetworkChannel(channelName))
+            {
+                throw new GameFrameworkException(Utility.Text.Format("Already exist network channel '{0}'.", channelName ?? string.Empty));
+            }
+
+            var networkChannel = new KcpNetworkChannel(channelName, networkChannelHelper, rpcTimeout, kcpConfig);
+            RegisterChannelEvents(networkChannel);
             m_NetworkChannels.Add(channelName, networkChannel);
             return networkChannel;
         }
@@ -240,10 +294,7 @@ namespace GameFrameX.Network.Runtime
             GameFrameworkGuard.NotNullOrEmpty(channelName, nameof(channelName));
             if (m_NetworkChannels.TryGetValue(channelName, out var networkChannel))
             {
-                networkChannel.NetworkChannelConnected -= OnNetworkChannelConnected;
-                networkChannel.NetworkChannelClosed -= OnNetworkChannelClosed;
-                networkChannel.NetworkChannelMissHeartBeat -= OnNetworkChannelMissHeartBeat;
-                networkChannel.NetworkChannelError -= OnNetworkChannelError;
+                UnregisterChannelEvents(networkChannel);
                 networkChannel.Shutdown();
                 return m_NetworkChannels.Remove(channelName);
             }
@@ -261,6 +312,30 @@ namespace GameFrameX.Network.Runtime
             {
                 networkChannel.SetFocusHeartbeat(hasFocus);
             }
+        }
+
+        /// <summary>
+        /// 订阅网络频道的四个事件回调。
+        /// </summary>
+        /// <param name="networkChannel">网络频道。</param>
+        private void RegisterChannelEvents(NetworkChannelBase networkChannel)
+        {
+            networkChannel.NetworkChannelConnected += OnNetworkChannelConnected;
+            networkChannel.NetworkChannelClosed += OnNetworkChannelClosed;
+            networkChannel.NetworkChannelMissHeartBeat += OnNetworkChannelMissHeartBeat;
+            networkChannel.NetworkChannelError += OnNetworkChannelError;
+        }
+
+        /// <summary>
+        /// 退订网络频道的四个事件回调。
+        /// </summary>
+        /// <param name="networkChannel">网络频道。</param>
+        private void UnregisterChannelEvents(NetworkChannelBase networkChannel)
+        {
+            networkChannel.NetworkChannelConnected -= OnNetworkChannelConnected;
+            networkChannel.NetworkChannelClosed -= OnNetworkChannelClosed;
+            networkChannel.NetworkChannelMissHeartBeat -= OnNetworkChannelMissHeartBeat;
+            networkChannel.NetworkChannelError -= OnNetworkChannelError;
         }
 
         private void OnNetworkChannelConnected(NetworkChannelBase networkChannel, object userData)

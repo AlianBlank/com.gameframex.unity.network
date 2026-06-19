@@ -40,7 +40,7 @@ namespace GameFrameX.Network.Runtime
         public sealed class ReceiveState : IDisposable
         {
             public const int DefaultBufferLength = 1024 * 64;
-            public const int PacketHeaderLength = 14;
+            public const int PacketHeaderLength = PacketHeaderLayout.BaseHeaderLength;
             private bool _disposed;
 
             [UnityEngine.Scripting.Preserve]
@@ -59,9 +59,20 @@ namespace GameFrameX.Network.Runtime
 
             public IPacketReceiveHeaderHandler PacketHeader { get; set; }
 
+            public bool IsReadingReliableHeaderExtension { get; private set; }
+
+            public byte[] BaseHeaderBuffer { get; private set; }
+
             public void PrepareForPacketHeader(int packetHeaderLength = PacketHeaderLength)
             {
                 Reset(packetHeaderLength, null);
+            }
+
+            public void PrepareForReliableHeaderExtension(byte[] baseHeaderBuffer, int extensionLength)
+            {
+                BaseHeaderBuffer = baseHeaderBuffer;
+                IsReadingReliableHeaderExtension = true;
+                Reset(extensionLength, null);
             }
 
             public void Dispose()
@@ -115,6 +126,11 @@ namespace GameFrameX.Network.Runtime
                 }
 
                 PacketHeader = packetHeader;
+                if (packetHeader != null)
+                {
+                    IsReadingReliableHeaderExtension = false;
+                    BaseHeaderBuffer = null;
+                }
             }
         }
     }
