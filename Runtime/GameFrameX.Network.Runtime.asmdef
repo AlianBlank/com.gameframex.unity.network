@@ -3,6 +3,7 @@
     "references": [
         "GameFrameX.Runtime",
         "GameFrameX.Event.Runtime",
+        "GameFrameX.LitJSON.Runtime",
         "UnityWebSocket.Runtime"
     ],
     "rootNamespace": "GameFrameX.Network.Runtime",

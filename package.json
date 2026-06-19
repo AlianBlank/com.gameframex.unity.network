@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "com.gameframex.unity": "1.1.1",
-    "com.gameframex.unity.event": "1.0.0"
+    "com.gameframex.unity.event": "1.0.0",
+    "com.gameframex.unity.litjson": "1.2.0"
   },
   "publishConfig": {
     "access": "public",
