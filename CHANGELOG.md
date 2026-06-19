@@ -1,3 +1,10 @@
+## [2.6.10](https://github.com/gameframex/com.gameframex.unity.network/compare/2.6.9...2.6.10) (2026-06-16)
+
+
+### Features
+
+* **network:** 文档补充 Reliable FIFO 破坏性升级说明，覆盖 ACK / Resume、pending 队列、服务器踢人语义和四传输一致性检查
+
 ## [2.6.9](https://github.com/gameframex/com.gameframex.unity.network/compare/2.6.8...2.6.9) (2026-06-15)
 
 

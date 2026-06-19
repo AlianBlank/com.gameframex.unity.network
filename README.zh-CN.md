@@ -27,13 +27,25 @@
 
 ### 功能特性
 
-- 长连接网络支持（TCP / WebSocket）
+- 长连接网络支持（TCP / WebSocket / KCP）
 - RPC 调用机制及超时处理
 - 心跳包机制（支持应用获得/失去焦点时发送配置）
+- Reliable FIFO 可靠消息协议，支持 ACK / Resume、pending 队列、重复响应幂等处理和服务器踢人语义
 - 可插拔的消息序列化（`IMessageSerializer` 接口），支持两级注册（全局默认 + 按频道覆盖）
 - 网络消息序列化与反序列化
 - 网络频道管理
 - 网络事件系统
+
+## Reliable FIFO 协议
+
+当前版本引入 Reliable FIFO 协议破坏性升级：包头升级为 16B 基础头和 40B 可靠扩展头，旧 14B 包头不再兼容。客户端和服务端必须同步升级协议常量、ACK / Resume 语义、pending 队列容量限制和服务器踢人原因映射。
+
+发布前请确认：
+
+- TCP 与 KCP over UDP/TCP/WebSocket 支持矩阵都通过同一套 ACK / Resume / FIFO 行为测试
+- `PendingQueueMaxCount`、`PendingQueueMaxBytes`、`PendingMessageMaxBytes` 与服务端保持一致
+- UDP Endpoint 迁移和 KCP 重建后只能通过 Resume 验证恢复 pending
+- `ServerKick`、`DuplicateLogin`、`SessionReplaced`、`AccountBanned`、`AdminKick`、`SessionExpired` 都映射为业务重连事件
 
 ## 快速开始
 
