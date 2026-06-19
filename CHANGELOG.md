@@ -1,3 +1,10 @@
+## [2.6.10](https://github.com/gameframex/com.gameframex.unity.network/compare/2.6.9...2.6.10) (2026-06-19)
+
+
+### Bug Fixes
+
+* **network:** 将 JSON 库从 Newtonsoft 切换为 LitJSON ([b1b0ce2](https://github.com/gameframex/com.gameframex.unity.network/commit/b1b0ce2f62d9b57b9f279967921e3e15001dee20))
+
 ## [2.6.9](https://github.com/gameframex/com.gameframex.unity.network/compare/2.6.8...2.6.9) (2026-06-15)
 
 

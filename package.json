@@ -3,7 +3,7 @@
   "displayName": "Game Frame X Network",
   "category": "GameFrameX",
   "description": "GameFrameX Network — Unity channel-based network communication package. Supports multiple named connections with configurable packet handling pipelines (send/receive header and body handlers, heartbeat, compression/decompression), RPC timeout, focus-based heartbeat control, and event-driven connection status notifications. Docs: https://gameframex.doc.alianblank.com\n\nGameFrameX Network — Unity 基于通道的网络通信功能包。支持多个命名连接，可配置数据包处理管道（发送/接收头部与包体处理器、心跳、压缩/解压），RPC 超时、焦点控制心跳，以及事件驱动的连接状态通知。文档：https://gameframex.doc.alianblank.com",
-  "version": "2.6.9",
+  "version": "2.6.10",
   "unity": "2019.4",
   "keywords": [
     "GameFrameX",
